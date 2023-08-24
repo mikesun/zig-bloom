@@ -5,23 +5,33 @@ const Allocator = std.mem.Allocator;
 const BitArray = @import("bit_array.zig").BitArray;
 const Murmur = std.hash.Murmur3_32;
 
+const BloomFilterError = error{
+    UnsupportedSpec,
+};
+
 /// Bloom filter with allocation of bit array at runtime initialization. Uses
 /// Murmur3 hash functions.
 pub const BloomFilter = struct {
-    num_hash_funcs: usize,
+    num_hash_funcs: u8,
     bits: BitArray,
 
-    /// Initialize a new Bloom filter
+    /// Initialize a new Bloom filter that is configured and sized to hold
+    /// a specified maximum number of items with a given false positive rate.
     pub fn init(
         allocator: std.mem.Allocator,
-        num_items: usize,
+        max_items: u64,
         fp_rate: f32,
-    ) Allocator.Error!BloomFilter {
-        const m = calcM(num_items, fp_rate);
-        const k = calcK(num_items, m);
+    ) !BloomFilter {
+        const m = calcM(max_items, fp_rate);
+        const k = calcK(max_items, m);
+
+        // check `k` is < 256
+        if (k > std.math.maxInt(u8)) {
+            return BloomFilterError.UnsupportedSpec;
+        }
 
         return BloomFilter{
-            .num_hash_funcs = k,
+            .num_hash_funcs = @truncate(k),
             .bits = try BitArray.init(allocator, m),
         };
     }
@@ -34,7 +44,7 @@ pub const BloomFilter = struct {
     /// Insert an item into the Bloom filter.
     pub fn insert(self: *BloomFilter, item: []const u8) !void {
         for (0..self.num_hash_funcs) |i| {
-            try self.bits.setBit(self.calcBitIdx(item, i));
+            try self.bits.setBit(self.calcBitIdx(item, @truncate(i)));
         }
     }
 
@@ -42,7 +52,7 @@ pub const BloomFilter = struct {
     /// positive, but will never return a false negative.
     pub fn contains(self: *BloomFilter, item: []const u8) !bool {
         for (0..self.num_hash_funcs) |i| {
-            if (try self.bits.getBit(self.calcBitIdx(item, i)) == 0) {
+            if (try self.bits.getBit(self.calcBitIdx(item, @truncate(i))) == 0) {
                 return false;
             }
         }
@@ -50,23 +60,23 @@ pub const BloomFilter = struct {
     }
 
     /// Calculate index of bit for given item and hashing function seed
-    fn calcBitIdx(self: *BloomFilter, item: []const u8, hash_seed: usize) usize {
-        const hash = Murmur.hashWithSeed(item, @truncate(hash_seed));
+    fn calcBitIdx(self: *BloomFilter, item: []const u8, hash_seed: u32) u64 {
+        const hash = Murmur.hashWithSeed(item, hash_seed);
         return hash % self.bits.len;
     }
 };
 
-/// Calculate the appropriate size in bits of the Bloom filter, `m`, given
-/// `n` and `f`, the expected number of elements contained in the Bloom filter and the
-/// target false positive rate, respectively.
+/// Calculate the appropriate number in bits of the Bloom filter, `m`, given
+/// `n`, the expected number of elements contained in the Bloom filter and the
+/// target false positive rate, `f`.
 ///
 /// `(-nln(f))/ln(2)^2`
-fn calcM(n: usize, f: f32) usize {
-    var numerator = @as(f32, @floatFromInt(n)) * -math.log(f32, math.e, f);
-    var denominator = math.pow(f32, (math.log(f32, math.e, 2)), 2);
-    return @as(usize, @intFromFloat(
-        math.divTrunc(f32, numerator, denominator) catch unreachable,
-    ));
+fn calcM(n: u64, f: f64) u64 {
+    var numerator = @as(f64, @floatFromInt(n)) * -math.log(f64, math.e, f);
+    var denominator = math.pow(f64, (math.log(f64, math.e, 2)), 2);
+    return @intFromFloat(
+        math.divTrunc(f64, numerator, denominator) catch unreachable,
+    );
 }
 
 /// Calculate the number of hash functions to use, `k`, given `n` and `m`, the expected
@@ -74,12 +84,12 @@ fn calcM(n: usize, f: f32) usize {
 /// filter.
 ///
 /// `(mln(2)/n)`
-fn calcK(n: usize, m: usize) usize {
+fn calcK(n: u64, m: u64) u64 {
     // https://en.wikipedia.org/wiki/Bloom_filter#Optimal_number_of_hash_functions
-    var numerator = @as(f32, @floatFromInt(m)) * math.log(f32, math.e, 2);
-    var denominator = @as(f32, @floatFromInt(n));
-    return @as(usize, @intFromFloat(
-        math.divTrunc(f32, numerator, denominator) catch unreachable,
+    var numerator = @as(f64, @floatFromInt(m)) * math.log(f64, math.e, 2);
+    var denominator = @as(f64, @floatFromInt(n));
+    return @as(u64, @intFromFloat(
+        math.divTrunc(f64, numerator, denominator) catch unreachable,
     ));
 }
 

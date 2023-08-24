@@ -2,7 +2,10 @@ const std = @import("std");
 const expect = std.testing.expect;
 const Allocator = std.mem.Allocator;
 
-const BitArrayError = error{InvalidBitOffset};
+const BitArrayError = error{
+    UnsupportedArraySize,
+    InvalidBitOffset,
+};
 
 pub const BitArray = struct {
     allocator: Allocator,
@@ -11,11 +14,15 @@ pub const BitArray = struct {
     bytes: []u8,
 
     /// Length in bits of the bit array.
-    len: usize,
+    len: u64,
 
     /// Initialize new BitArray given allocator and length in bits of BitArray.
-    pub fn init(allocator: Allocator, num_bits: usize) Allocator.Error!BitArray {
-        const num_bytes = if (num_bits % 8 > 0) (num_bits / 8) + 1 else (num_bits / 8);
+    pub fn init(allocator: Allocator, num_bits: u64) !BitArray {
+        // determine number of bytes of memory needed
+        const num_bytes: u64 = if (num_bits % 8 > 0) (num_bits / 8) + 1 else (num_bits / 8);
+
+        // check requested bit array size is supported by machine arch
+        if (num_bytes > std.math.maxInt(usize)) return BitArrayError.UnsupportedArraySize;
         var bytes = try allocator.alloc(u8, num_bytes);
         @memset(bytes, 0);
 
@@ -32,7 +39,7 @@ pub const BitArray = struct {
     }
 
     /// Get value of bit.
-    pub fn getBit(self: *BitArray, idx: usize) BitArrayError!u1 {
+    pub fn getBit(self: *BitArray, idx: u64) BitArrayError!u1 {
         try self.isValidBitIdx(idx);
         const offset = bitOffset(idx);
         return @truncate(
@@ -41,33 +48,39 @@ pub const BitArray = struct {
     }
 
     /// Set value of bit to 1.
-    pub fn setBit(self: *BitArray, idx: usize) BitArrayError!void {
+    pub fn setBit(self: *BitArray, idx: u64) BitArrayError!void {
         try self.isValidBitIdx(idx);
         self.bytes[byteIdx(idx)] |= @as(u8, 1) << bitOffset(idx);
     }
 
     /// Clear value of bit to 0.
-    pub fn clearBit(self: *BitArray, idx: usize) BitArrayError!void {
+    pub fn clearBit(self: *BitArray, idx: u64) BitArrayError!void {
         try self.isValidBitIdx(idx);
         self.bytes[byteIdx(idx)] &= ~(@as(u8, 1) << bitOffset(idx));
     }
 
     /// Toggle value of bit.
-    pub fn toggleBit(self: *BitArray, idx: usize) BitArrayError!void {
+    pub fn toggleBit(self: *BitArray, idx: u64) BitArrayError!void {
         try self.isValidBitIdx(idx);
         self.bytes[byteIdx(idx)] ^= @as(u8, 1) << bitOffset(idx);
     }
 
-    fn isValidBitIdx(self: *BitArray, idx: usize) BitArrayError!void {
+    fn isValidBitIdx(self: *BitArray, idx: u64) BitArrayError!void {
         if (idx >= self.len) return BitArrayError.InvalidBitOffset;
     }
 };
 
-fn byteIdx(bit_idx: usize) usize {
-    return bit_idx / 8;
+fn byteIdx(bit_idx: u64) usize {
+    const byte_idx: u64 = bit_idx / 8;
+
+    // @truncate of byte_idx from u64 to usize will never truncate any
+    // significant as we always check that bit_idx < the length of the bit
+    // array, whose size in bytes is constrained at initialization to be always
+    // addressable by a usize pointer.
+    return @truncate(byte_idx);
 }
 
-fn bitOffset(bit_idx: usize) u3 {
+fn bitOffset(bit_idx: u64) u3 {
     return @truncate(bit_idx % 8);
 }
 

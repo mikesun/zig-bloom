@@ -2,7 +2,6 @@
 
 Wrote a simple Bloom filter to learn some Zig.
 
-## Design
 A [Bloom filter](https://en.wikipedia.org/wiki/Bloom_filter) is a space-efficient, probabilistic data structure that is used to test whether an element is a member of a set. False positive matches are possible, but false negatives are not.
 
 Parameters:  
