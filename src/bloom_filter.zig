@@ -25,7 +25,7 @@ pub const BloomFilter = struct {
         const m = calcM(max_items, fp_rate);
         const k = calcK(max_items, m);
 
-        // check `k` is < 256
+        // check `k` is <= 256
         if (k > std.math.maxInt(u8)) {
             return BloomFilterError.UnsupportedSpec;
         }
