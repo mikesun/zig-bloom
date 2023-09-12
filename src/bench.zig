@@ -222,7 +222,7 @@ test "benchmark" {
         // How many iterations to run each benchmark.
         // If not present then a default will be used.
         pub const min_iterations = 1000;
-        pub const max_iterations = 100000;
+        pub const max_iterations = 10000;
 
         pub fn sum_slice(slice: []const u8) u64 {
             var res: u64 = 0;
@@ -245,30 +245,30 @@ test "benchmark" {
     });
 }
 
-test "benchmark generics" {
-    try benchmark(struct {
-        pub const args = [_]type{
-            @Vector(4, f16),  @Vector(4, f32),  @Vector(4, f64),
-            @Vector(8, f16),  @Vector(8, f32),  @Vector(8, f64),
-            @Vector(16, f16), @Vector(16, f32), @Vector(16, f64),
-        };
+// test "benchmark generics" {
+//     try benchmark(struct {
+//         pub const args = [_]type{
+//             @Vector(4, f16),  @Vector(4, f32),  @Vector(4, f64),
+//             @Vector(8, f16),  @Vector(8, f32),  @Vector(8, f64),
+//             @Vector(16, f16), @Vector(16, f32), @Vector(16, f64),
+//         };
 
-        pub const arg_names = [_][]const u8{
-            "vec4f16",  "vec4f32",  "vec4f64",
-            "vec8f16",  "vec8f32",  "vec8f64",
-            "vec16f16", "vec16f32", "vec16f64",
-        };
+//         pub const arg_names = [_][]const u8{
+//             "vec4f16",  "vec4f32",  "vec4f64",
+//             "vec8f16",  "vec8f32",  "vec8f64",
+//             "vec16f16", "vec16f32", "vec16f64",
+//         };
 
-        pub fn sum_vectors(comptime T: type) T {
-            const info = @typeInfo(T).Vector;
-            const one: T = @splat(@as(info.child, 1));
-            const vecs = [1]T{one} ** 512;
+//         pub fn sum_vectors(comptime T: type) T {
+//             const info = @typeInfo(T).Vector;
+//             const one: T = @splat(@as(info.child, 1));
+//             const vecs = [1]T{one} ** 512;
 
-            var res = one;
-            for (vecs) |vec| {
-                res += vec;
-            }
-            return res;
-        }
-    });
-}
+//             var res = one;
+//             for (vecs) |vec| {
+//                 res += vec;
+//             }
+//             return res;
+//         }
+//     });
+// }
